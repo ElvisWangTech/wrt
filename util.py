@@ -1,5 +1,6 @@
 import os
 
+
 def getFileSize(filePath: str):
     fsize = os.path.getsize(filePath)
     if fsize < 1024:
@@ -14,7 +15,8 @@ def getFileSize(filePath: str):
                 return (round(MBX, 2), 'M')
             else:
                 return (round(MBX / 1024), 'G')
-            
+
+
 def getFileSizeDesc(filePath: str):
     filesize = getFileSize(filePath)
     return str(filesize[0]) + filesize[1]

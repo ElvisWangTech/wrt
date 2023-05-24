@@ -1,14 +1,18 @@
 import sys
 import os
+from warnings import warn
 from threading import Thread
 from PyQt6 import uic, QtWidgets
-from PyQt6.QtWidgets import QApplication, QPlainTextEdit, QMenu, QFileDialog, QLabel, QPushButton, QMessageBox, QStatusBar
-from PyQt6.QtCore import QDir
+from PyQt6.QtWidgets import QApplication, QMainWindow, QPlainTextEdit, QMenu, \
+    QFileDialog, QLabel, QPushButton, QMessageBox, QStatusBar, QProgressBar
+from PyQt6.QtCore import QThreadPool
 from PyQt6.QtGui import QAction, QIcon
 
 from util import getFileSizeDesc
 from translator import translate
 from message import SN, SN_TYPE
+from workers import TranslateWorker
+
 
 class WRT():
 
@@ -16,21 +20,22 @@ class WRT():
     WRT is a realtime translator using whisper.
     '''
     def __init__(self):
-        
-        self.app = QApplication(sys.argv)
-        self.window = uic.loadUi("WRT.ui")
-        
+        self.app: QApplication = QApplication(sys.argv)
+        self.window: QMainWindow = uic.loadUi("WRT.ui")
         self.initWidges()
         self.bindWidgetSignals()
 
+        self.threadpool = QThreadPool()
         self.window.show()
         self.app.exec()
 
     def initWidges(self):
         self.filePathLabel: QLabel = self.window.findChild(QtWidgets.QLabel, "filePath")
+        self.fileSizeLabel: QLabel = self.window.findChild(QtWidgets.QLabel, "fileSize")
         self.plainTextEdit: QPlainTextEdit = self.window.findChild(QtWidgets.QPlainTextEdit, 'plainTextEdit')
         self.startButton: QPushButton = self.window.findChild(QtWidgets.QPushButton, 'startButton')
         self.statusBar: QStatusBar = self.window.findChild(QtWidgets.QStatusBar, 'statusbar')
+        self.progressBar: QProgressBar = self.window.findChild(QtWidgets.QProgressBar, 'progressBar')
 
     def bindWidgetSignals(self):
         # 选择文件按钮
@@ -52,27 +57,50 @@ class WRT():
         helpMenu.addAction(aboutAction)
 
         # 开始按钮
-        self.startButton.clicked.connect(self.startTranslateThread)
+        # self.startButton.clicked.connect(self.startTranslateThread)
+        self.startButton.pressed.connect(self.startTranslateWorker)
+        self.startButton.setDisabled(True)
+
+        # 进度条默认隐藏
+        self.progressBar.setVisible(False)
 
     def getFile(self):
         print("get file...")
-
-        fileName = QFileDialog.getOpenFileName(self.window, "选择文件", os.path.expanduser('~'), "*.mp4 *.mp3 *.aac *.wav *.flv")
+        fileName = QFileDialog.getOpenFileName(
+            self.window, "选择文件", os.path.expanduser('~'),
+            "*.mp4 *.mp3 *.aac *.wav *.flv")
 
         if (fileName[0]):
             print("select file", fileName[0])
-            self.filePathLabel.setText('当前文件：' + fileName[0] + '' * 20 + '大小：' + getFileSizeDesc(fileName[0]))
+            self.filePathLabel.setText(fileName[0])
+            self.fileSizeLabel.setText(getFileSizeDesc(fileName[0]))
             self.filePath = fileName[0]
+            self.startButton.setDisabled(False)
+            self.progressBar.setVisible(True)
 
     def exportTxt(self):
         print("export txt file...")
 
-
     def showAboutDialg(self):
         print("show about...")
 
+    def startTranslateWorker(self):
+        worker = TranslateWorker(translate, self.filePath)
+        worker.signals.result.connect(self.handleMessage)
+        worker.signals.finished.connect(self.handleMessage)
+        worker.signals.progress.connect(self.handleProgress)
+
+        # 禁用开始按钮，防止重复触发
+        self.startButton.setText("转录中..")
+        self.startButton.setDisabled(True)
+        self.progressBar.setValue(0)
+        self.plainTextEdit.setPlainText("")
+        # Execute
+        self.threadpool.start(worker)
+
     def startTranslateThread(self):
-        self.translateThread = Thread(target=translate, args=(self.filePath, self.handleMessage))
+        warn("This is deprecated; version=1.0.0", DeprecationWarning)
+        self.translateThread = Thread(target=translate, args=(self.filePath, self.handleMessage, self.handleProgress,))
         self.translateThread.start()
 
     def handleMessage(self, message: SN):
@@ -89,6 +117,14 @@ class WRT():
                 pass
             case SN_TYPE.finished:
                 self.statusBar.showMessage(message.text)
+                self.progressBar.setValue(100)
+                self.startButton.setDisabled(False)
+                self.startButton.setText("开始")
+
+    def handleProgress(self, progress):
+        print("progress: ", progress)
+        self.progressBar.setValue(int(progress * 100))
+
 
 if __name__ == '__main__':
     WRT()
