@@ -20,3 +20,16 @@ def getFileSize(filePath: str):
 def getFileSizeDesc(filePath: str):
     filesize = getFileSize(filePath)
     return str(filesize[0]) + filesize[1]
+
+
+def getFileName(filePath: str, withExt=False):
+    fileName = os.path.basename(filePath)
+    if not withExt:
+        print(fileName.split('.'))
+        list = fileName.split('.')
+        return list[0]
+    return fileName
+
+
+if __name__ == '__main__':
+    getFileName('C:/Users/yiwei/cz_126.mp4')

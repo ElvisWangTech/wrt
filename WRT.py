@@ -1,15 +1,16 @@
 import sys
 import os
+from queue import Queue
 from warnings import warn
 from threading import Thread
 from PyQt6 import uic, QtWidgets
 from PyQt6.QtWidgets import QApplication, QMainWindow, QPlainTextEdit, QMenu, \
     QFileDialog, QLabel, QPushButton, QMessageBox, QStatusBar, QProgressBar
-from PyQt6.QtCore import QThreadPool
+from PyQt6.QtCore import QThreadPool, QTimer
 from PyQt6.QtGui import QAction, QIcon
 
-from util import getFileSizeDesc
-from translator import translate
+from util import getFileSizeDesc, getFileName
+from translator import preloadAudio, translate
 from message import SN, SN_TYPE
 from workers import TranslateWorker
 
@@ -24,10 +25,20 @@ class WRT():
         self.window: QMainWindow = uic.loadUi("WRT.ui")
         self.initWidges()
         self.bindWidgetSignals()
+        self.working = False
 
         self.threadpool = QThreadPool()
+        self.messageQue = Queue()
+        self.timer = self.initTimer()
+        # preloadModel()
         self.window.show()
         self.app.exec()
+
+    def initTimer(self):
+        timer = QTimer()
+        timer.setInterval(1000)
+        timer.timeout.connect(self.pollMessage)
+        return timer
 
     def initWidges(self):
         self.filePathLabel: QLabel = self.window.findChild(QtWidgets.QLabel, "filePath")
@@ -77,18 +88,31 @@ class WRT():
             self.filePath = fileName[0]
             self.startButton.setDisabled(False)
             self.progressBar.setVisible(True)
+            self.statusBar.showMessage("开始预加载资源")
+            preloadAudio(self.filePath)
+            self.statusBar.showMessage("资源准备完毕")
 
     def exportTxt(self):
         print("export txt file...")
+        if self.working:
+            QMessageBox.information(self.window, "提示", "还在转录呢~")
+            return
+        if self.filePath is None:
+            QMessageBox.information(self.window, "提示", "没有任何文件要导出！")
+            return
+        file = open(os.path.join(os.path.dirname(self.filePath), getFileName(self.filePath), '.txt'), 'w')
+        text = self.plainTextEdit.toPlainText()
+        file.write(text)
+        file.close()
 
     def showAboutDialg(self):
         print("show about...")
 
     def startTranslateWorker(self):
         worker = TranslateWorker(translate, self.filePath)
-        worker.signals.result.connect(self.handleMessage)
-        worker.signals.finished.connect(self.handleMessage)
-        worker.signals.progress.connect(self.handleProgress)
+        worker.signals.result.connect(self.putMessage)
+        worker.signals.finished.connect(self.putMessage)
+        # worker.signals.progress.connect(self.handleProgress) # progress直接存在消息里
 
         # 禁用开始按钮，防止重复触发
         self.startButton.setText("转录中..")
@@ -97,17 +121,36 @@ class WRT():
         self.plainTextEdit.setPlainText("")
         # Execute
         self.threadpool.start(worker)
+        self.working = True
+        # 启动定时器处理消息
+        self.timer.stop()
+        self.messageQue.empty()
+        self.timer.start()
 
     def startTranslateThread(self):
         warn("This is deprecated; version=1.0.0", DeprecationWarning)
-        self.translateThread = Thread(target=translate, args=(self.filePath, self.handleMessage, self.handleProgress,))
+        self.translateThread = Thread(target=translate, args=(self.filePath, self.putMessage, self.handleProgress,))
         self.translateThread.start()
 
+    def pollMessage(self):
+        # print("get message in queue")
+        if self.messageQue.empty():
+            return
+        msg: SN = self.messageQue.get(block=False)
+        if (msg is not None):
+            self.handleMessage(msg)
+
+    def putMessage(self, message: SN):
+        print("put message in queue", message)
+        self.messageQue.put(message)
+
     def handleMessage(self, message: SN):
-        print(message)
+        print("handle message", message)
         match message.type:
             case SN_TYPE.dataGenerated:
                 self.plainTextEdit.appendPlainText(message.text)
+                if (message.progress):
+                    self.handleProgress(message.progress)
             case SN_TYPE.error:
                 QMessageBox.warning(self.window, "出现错误", message.text)
             case SN_TYPE.keyInfo:
@@ -120,6 +163,8 @@ class WRT():
                 self.progressBar.setValue(100)
                 self.startButton.setDisabled(False)
                 self.startButton.setText("开始")
+                self.working = False
+                self.timer.stop()
 
     def handleProgress(self, progress):
         print("progress: ", progress)

@@ -10,9 +10,10 @@ class SN_TYPE(Enum):
 
 
 class SN:
-    def __init__(self, text, type: SN_TYPE) -> None:
+    def __init__(self, text, type: SN_TYPE, progress: float = 0.0) -> None:
         self.text = text
         self.type = type
+        self.progress = progress
 
     def __str__(self) -> str:
-        return "text: {}, type: {}".format(self.text, self.type)
+        return "text: {}, type: {}, progress: {}".format(self.text, self.type, self.progress)
