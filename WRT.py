@@ -29,16 +29,16 @@ class WRT():
 
         self.threadpool = QThreadPool()
         self.messageQue = Queue()
-        self.timer = self.initTimer()
+        self.initTimer()
         # preloadModel()
         self.window.show()
         self.app.exec()
 
     def initTimer(self):
-        timer = QTimer()
-        timer.setInterval(1000)
-        timer.timeout.connect(self.pollMessage)
-        return timer
+        self.timer = QTimer(self.window)
+        self.timer.setInterval(1000)
+        self.timer.timeout.connect(self.pollMessage)
+        self.timer.start()
 
     def initWidges(self):
         self.filePathLabel: QLabel = self.window.findChild(QtWidgets.QLabel, "filePath")
@@ -100,10 +100,12 @@ class WRT():
         if self.filePath is None:
             QMessageBox.information(self.window, "提示", "没有任何文件要导出！")
             return
-        file = open(os.path.join(os.path.dirname(self.filePath), getFileName(self.filePath), '.txt'), 'w')
+        saveFilePath = os.path.dirname(self.filePath) + '/' + getFileName(self.filePath) + '.txt'
+        file = open(saveFilePath, 'w')
         text = self.plainTextEdit.toPlainText()
         file.write(text)
         file.close()
+        QMessageBox.information(self.window, "提升", "保存成功！\n {}".format(saveFilePath))
 
     def showAboutDialg(self):
         print("show about...")
@@ -123,9 +125,7 @@ class WRT():
         self.threadpool.start(worker)
         self.working = True
         # 启动定时器处理消息
-        self.timer.stop()
         self.messageQue.empty()
-        self.timer.start()
 
     def startTranslateThread(self):
         warn("This is deprecated; version=1.0.0", DeprecationWarning)
@@ -164,7 +164,6 @@ class WRT():
                 self.startButton.setDisabled(False)
                 self.startButton.setText("开始")
                 self.working = False
-                self.timer.stop()
 
     def handleProgress(self, progress):
         print("progress: ", progress)
