@@ -8,7 +8,7 @@ model = None
 audio_cache = {}
 
 
-def translate(file_path: str, handle_message=print, progress_callback=print):
+def translate(file_path_or_file, handle_message=print, progress_callback=print):
     '''
     translate voice to plaintext by whisper.
     If the audio duration exceeds 30 seconds, The audio will be split into segments in 30 seconds.
@@ -22,7 +22,10 @@ def translate(file_path: str, handle_message=print, progress_callback=print):
     try:
         handle_message(SN(text="start translate...", type=SN_TYPE.processing))
         preloadModel()
-        audio = preloadAudio(file_path)
+        if (isinstance(file_path_or_file, str)):
+            audio = preloadAudio(file_path_or_file)
+        else:
+            audio = file_path_or_file
         global model
         audio_size = len(audio)
         processed_size = 0
