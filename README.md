@@ -16,3 +16,24 @@ WRT is a realtime translator using whisper.
 - 孤儿线程问题，需要在退出的时候退出所有线程
 - 打出来的包运行会弹出黑框
 - 包含pytorch导致打出来的包太大
+
+### 安装过程
+
+ffmpeg:
+记得单独安装
+
+windows: 
+python -m venv .venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+
+linux:
+python3 -m venv.venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+### 运行
+python WRT.py
+
+### 打包
+install.cmd

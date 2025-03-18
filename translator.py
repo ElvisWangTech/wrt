@@ -72,7 +72,7 @@ def preloadAudio(file_path: str, overload: bool = False):
     # target audio not cached or overload force
     audio = audio_cache.get(file_path)
     if overload or file_path not in audio_cache:
-        print("加载文件到内存")
+        print("加载文件到内存", file_path)
         audio = whisper.load_audio(file_path)
         audio_cache[file_path] = audio
     return audio
